@@ -8,15 +8,23 @@ dist/
 build/
 .next/
 
-# Logs
+# Logs — root-level volume and any nested log dirs
 logs/
 *.log
 npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# Environment variables
+# Environment variables — never commit real secrets
 .env
 .env.local
 .env.production
+.env.*.local
+
+# Encrypted user uploads — root-level docker volume and backend dir
+uploads/
+backend/uploads/*
+!backend/uploads/.gitkeep
 
 # Editor
 .vscode/
@@ -31,6 +39,5 @@ Thumbs.db
 # TypeScript
 *.tsbuildinfo
 
-# Encrypted user uploads (never commit)
-backend/uploads/*
-!backend/uploads/.gitkeep
+# Docker / nginx runtime artefacts
+nginx/ssl/

@@ -14,7 +14,12 @@ import { sanitizeInput } from './middleware/inputSanitizer';
 import { csrfMiddleware } from './middleware/csrf';
 import { errorHandler } from './middleware/errorHandler';
 import { generalLimiter } from './middleware/rateLimiter';
+import { runSecurityAudit } from './utils/securityAudit';
 import routes from './routes';
+
+// Verify all required secrets and env vars before accepting traffic.
+// Calls process.exit(1) if any required value is missing or invalid.
+runSecurityAudit();
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '5000', 10);
