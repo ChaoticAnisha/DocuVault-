@@ -15,6 +15,9 @@ import Dashboard from './pages/Dashboard';
 import Profile from './pages/Profile';
 import SetupMfa from './pages/SetupMfa';
 import AdminDashboard from './pages/AdminDashboard';
+import Documents from './pages/Documents';
+import DocumentDetail from './pages/DocumentDetail';
+import Upgrade from './pages/Upgrade';
 
 // Route guard
 import PrivateRoute from './components/PrivateRoute';
@@ -34,7 +37,6 @@ function RootRedirect() {
 export default function App() {
   const { checkAuth } = useAuthStore();
 
-  // Verify session once at app boot.
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
@@ -69,15 +71,15 @@ export default function App() {
       />
       <Route
         path="/documents"
-        element={<PrivateRoute><div className="p-8">Documents list (coming soon)</div></PrivateRoute>}
+        element={<PrivateRoute><Documents /></PrivateRoute>}
       />
       <Route
         path="/documents/:id"
-        element={<PrivateRoute><div className="p-8">Document detail (coming soon)</div></PrivateRoute>}
+        element={<PrivateRoute><DocumentDetail /></PrivateRoute>}
       />
       <Route
         path="/upgrade"
-        element={<PrivateRoute><div className="p-8">Upgrade to Premium (coming soon)</div></PrivateRoute>}
+        element={<PrivateRoute><Upgrade /></PrivateRoute>}
       />
 
       {/* Private — ADMIN only */}
