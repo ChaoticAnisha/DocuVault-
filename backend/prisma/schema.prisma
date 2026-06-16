@@ -1,0 +1,171 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+enum SharePermission {
+  VIEW
+  SIGN
+  EDIT
+}
+
+enum TransactionStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+model User {
+  id                     String    @id @default(uuid())
+  email                  String    @unique
+  username               String    @unique
+  passwordHash           String?
+  role                   Role      @default(EDITOR)
+  mfaEnabled             Boolean   @default(false)
+  mfaSecret              String?
+  isEmailVerified        Boolean   @default(false)
+  emailVerificationToken String?
+  passwordResetToken     String?
+  passwordResetExpiry    DateTime?
+  failedLoginAttempts    Int       @default(0)
+  lockedUntil            DateTime?
+  passwordChangedAt      DateTime?
+  passwordHistory        String[]  @default([])
+  googleId               String?   @unique
+  avatarUrl              String?
+  storageUsed            BigInt    @default(0)
+  storageLimitBytes      BigInt    @default(104857600)
+  isPremium              Boolean   @default(false)
+  stripeCustomerId       String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  documents     Document[]
+  sharedWithMe  DocumentShare[]
+  signatures    DocumentSignature[]
+  activityLogs  ActivityLog[]
+  refreshTokens RefreshToken[]
+  transactions  Transaction[]
+
+  @@index([email])
+  @@index([username])
+}
+
+model Document {
+  id                String    @id @default(uuid())
+  title             String
+  description       String?
+  fileKey           String
+  mimeType          String
+  sizeBytes         BigInt
+  encryptionIv      String
+  ownerId           String
+  isDeleted         Boolean   @default(false)
+  deletedAt         DateTime?
+  requiresSignature Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  owner      User                @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  shares     DocumentShare[]
+  signatures DocumentSignature[]
+
+  @@index([ownerId])
+  @@index([isDeleted])
+}
+
+model DocumentShare {
+  id              String          @id @default(uuid())
+  documentId      String
+  sharedWithId    String?
+  sharedWithEmail String?
+  permission      SharePermission @default(VIEW)
+  token           String          @unique
+  expiresAt       DateTime?
+  isAccepted      Boolean         @default(false)
+  createdAt       DateTime        @default(now())
+
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  sharedWith User?    @relation(fields: [sharedWithId], references: [id], onDelete: SetNull)
+
+  @@index([documentId])
+  @@index([sharedWithId])
+  @@index([token])
+}
+
+model DocumentSignature {
+  id          String    @id @default(uuid())
+  documentId  String
+  signerId    String?
+  signerEmail String
+  signedAt    DateTime?
+  isSigned    Boolean   @default(false)
+  ipAddress   String?
+  userAgent   String?
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  signer   User?    @relation(fields: [signerId], references: [id], onDelete: SetNull)
+
+  @@index([documentId])
+  @@index([signerId])
+}
+
+model ActivityLog {
+  id           String   @id @default(uuid())
+  userId       String?
+  action       String
+  resourceType String?
+  resourceId   String?
+  ipAddress    String?
+  userAgent    String?
+  metadata     Json?
+  createdAt    DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  isRevoked Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+}
+
+model Transaction {
+  id                    String            @id @default(uuid())
+  userId                String
+  stripePaymentIntentId String            @unique
+  amount                Int
+  currency              String            @default("gbp")
+  status                TransactionStatus @default(PENDING)
+  planType              String
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([stripePaymentIntentId])
+}
