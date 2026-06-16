@@ -8,7 +8,7 @@ const TOKEN_COOKIE = 'csrf-token';
 const HEADER = 'x-csrf-token';
 
 // Paths that must bypass CSRF (external callers cannot send our header).
-const EXCLUDED_PATHS = ['/api/auth/google/callback', '/api/webhooks/stripe'];
+const EXCLUDED_PATHS = ['/api/auth/google/callback', '/api/payments/webhook'];
 
 const isProd = () => process.env.NODE_ENV === 'production';
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
