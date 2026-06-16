@@ -2,7 +2,9 @@ import { Role, RefreshToken } from '@prisma/client';
 
 declare global {
   namespace Express {
-    interface AuthUser {
+    // Extending the Passport-declared User interface so req.user carries our
+    // fields without conflicting with passport's own augmentation.
+    interface User {
       id: string;
       email: string;
       role: Role;
@@ -11,7 +13,6 @@ declare global {
     }
 
     interface Request {
-      user?: AuthUser;
       refreshTokenRecord?: RefreshToken;
     }
   }
