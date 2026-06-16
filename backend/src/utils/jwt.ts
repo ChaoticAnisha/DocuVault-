@@ -1,9 +1,12 @@
 import jwt from 'jsonwebtoken';
+import { Role } from '@prisma/client';
 
 export interface JwtPayload {
   sub: string;
   email: string;
-  role: string;
+  role: Role;
+  isEmailVerified: boolean;
+  mfaEnabled: boolean;
 }
 
 export const signAccessToken = (payload: JwtPayload): string =>
