@@ -13,6 +13,7 @@ import {
   verifyMfaSetup,
   disableMfa,
   googleOAuthCallback,
+  getMe,
 } from '../controllers/authController';
 import {
   authLimiter,
@@ -39,6 +40,7 @@ router.get('/verify-email/:token', verifyEmail);
 router.get('/csrf-token', csrfTokenHandler);
 
 // Authenticated routes
+router.get('/me', verifyAccessToken, getMe);
 router.post('/logout', verifyAccessToken, logout);
 router.post('/refresh', verifyRefreshToken, refreshToken);
 router.post('/setup-mfa', verifyAccessToken, requireEmailVerified, setupMfa);

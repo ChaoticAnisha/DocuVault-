@@ -13,6 +13,29 @@ import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/email';
 import { AppError } from '../utils/AppError';
 import { asyncHandler } from '../utils/asyncHandler';
 
+const ME_SELECT = {
+  id: true,
+  email: true,
+  username: true,
+  role: true,
+  mfaEnabled: true,
+  isPremium: true,
+  storageUsed: true,
+  storageLimitBytes: true,
+  isEmailVerified: true,
+  avatarUrl: true,
+  createdAt: true,
+} as const;
+
+export const getMe = asyncHandler(async (req: Request, res: Response) => {
+  const user = await prisma.user.findUnique({
+    where: { id: req.user!.id },
+    select: ME_SELECT,
+  });
+  if (!user) throw new AppError(401, 'User not found');
+  res.json({ success: true, user });
+});
+
 // ─── Cookie helpers ──────────────────────────────────────────────────────────
 
 const isProd = () => process.env.NODE_ENV === 'production';
