@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Users,
@@ -11,6 +11,10 @@ import {
   Download,
   ShieldCheck,
   ShieldOff,
+  AlertTriangle,
+  X,
+  Wifi,
+  WifiOff,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Layout from '../components/Layout';
@@ -19,50 +23,44 @@ import api from '../api/axios';
 import type { AdminStats, AdminUser, ActivityLog } from '../types';
 import clsx from 'clsx';
 
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface LiveStats {
+  failedLoginsFiveMin: number;
+  newUsers: number;
+  lockedAccounts: number;
+  ts: string;
+}
+
+interface SecurityAlert {
+  type: 'BRUTE_FORCE' | 'SUSPICIOUS_LOGINS' | 'MASS_DOWNLOAD' | 'PASSWORD_RESETS';
+  severity: 'critical' | 'high';
+  message: string;
+  ipHash?: string;
+  userId?: string;
+  count: number;
+  detectedAt: string;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 const ROLE_COLORS: Record<string, string> = {
   ADMIN: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
   EDITOR: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
   VIEWER: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
 };
 
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-  color = 'text-brand-500',
-}: {
-  icon: React.ElementType;
-  label: string;
-  value: string | number;
-  color?: string;
-}) {
-  return (
-    <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-5 flex items-start gap-4">
-      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gray-50 dark:bg-gray-800 ${color}`}>
-        <Icon size={20} />
-      </div>
-      <div>
-        <p className="text-2xl font-bold text-gray-900 dark:text-white">{value}</p>
-        <p className="text-sm text-gray-500 dark:text-gray-400">{label}</p>
-      </div>
-    </div>
-  );
-}
-
 function formatBytes(bytes: string | number) {
   const n = typeof bytes === 'string' ? parseInt(bytes) : bytes;
-  if (n >= 1024 * 1024 * 1024) return `${(n / 1024 / 1024 / 1024).toFixed(1)} GB`;
-  if (n >= 1024 * 1024) return `${(n / 1024 / 1024).toFixed(0)} MB`;
+  if (n >= 1024 ** 3) return `${(n / 1024 ** 3).toFixed(1)} GB`;
+  if (n >= 1024 ** 2) return `${(n / 1024 ** 2).toFixed(0)} MB`;
   return `${Math.round(n / 1024)} KB`;
 }
 
 function exportCSV(users: AdminUser[]) {
   const headers = ['ID', 'Email', 'Username', 'Role', 'Premium', 'MFA', 'Email Verified', 'Created'];
   const rows = users.map((u) => [
-    u.id,
-    u.email,
-    u.username,
-    u.role,
+    u.id, u.email, u.username, u.role,
     u.isPremium ? 'Yes' : 'No',
     u.mfaEnabled ? 'Yes' : 'No',
     u.isEmailVerified ? 'Yes' : 'No',
@@ -78,15 +76,59 @@ function exportCSV(users: AdminUser[]) {
   URL.revokeObjectURL(url);
 }
 
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  color = 'text-brand-500',
+  highlight,
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: string | number;
+  color?: string;
+  highlight?: boolean;
+}) {
+  return (
+    <div
+      className={clsx(
+        'rounded-xl border bg-white dark:bg-gray-900 p-5 flex items-start gap-4 transition-colors',
+        highlight
+          ? 'border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/10'
+          : 'border-gray-200 dark:border-gray-800'
+      )}
+    >
+      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gray-50 dark:bg-gray-800 ${color}`}>
+        <Icon size={20} />
+      </div>
+      <div>
+        <p className={clsx('text-2xl font-bold', highlight ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white')}>
+          {value}
+        </p>
+        <p className="text-sm text-gray-500 dark:text-gray-400">{label}</p>
+      </div>
+    </div>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+
 export default function AdminDashboard() {
   const qc = useQueryClient();
   const [page, setPage] = useState(1);
   const [roleDropdown, setRoleDropdown] = useState<string | null>(null);
+  const [liveStats, setLiveStats] = useState<LiveStats | null>(null);
+  const [alerts, setAlerts] = useState<SecurityAlert[]>([]);
+  const [sseConnected, setSseConnected] = useState(false);
+  const esRef = useRef<EventSource | null>(null);
+
+  // ── Data queries ────────────────────────────────────────────────────────────
 
   const { data: statsData } = useQuery({
     queryKey: ['admin', 'stats'],
     queryFn: () =>
       api.get<{ success: boolean; data: AdminStats }>('/admin/stats').then((r) => r.data),
+    refetchInterval: 60_000,
   });
 
   const { data: usersData, isLoading: usersLoading } = useQuery({
@@ -103,11 +145,58 @@ export default function AdminDashboard() {
   const users = usersData?.data ?? [];
   const pagination = usersData?.pagination;
 
+  // ── SSE connection ──────────────────────────────────────────────────────────
+
+  const connectSse = useCallback(() => {
+    if (esRef.current) esRef.current.close();
+
+    // Vite proxy forwards /api → backend in dev; nginx handles it in prod
+    const es = new EventSource('/api/admin/events', { withCredentials: true });
+    esRef.current = es;
+
+    es.addEventListener('stats', (e) => {
+      try {
+        setLiveStats(JSON.parse(e.data) as LiveStats);
+      } catch { /* ignore malformed */ }
+    });
+
+    es.addEventListener('alert', (e) => {
+      try {
+        const alert = JSON.parse(e.data) as SecurityAlert;
+        setAlerts((prev) => [alert, ...prev.slice(0, 9)]); // keep last 10
+
+        if (alert.type === 'BRUTE_FORCE') {
+          toast.error(`🚨 Brute-force attack detected — ${alert.count} failed logins from same IP`, {
+            duration: 8000,
+          });
+        } else {
+          toast(`⚠ Security alert: ${alert.message}`, { duration: 6000 });
+        }
+
+        // Refresh stats after an alert
+        qc.invalidateQueries({ queryKey: ['admin', 'stats'] });
+      } catch { /* ignore malformed */ }
+    });
+
+    es.onopen = () => setSseConnected(true);
+    es.onerror = () => {
+      setSseConnected(false);
+      es.close();
+      // Reconnect after 10 s
+      setTimeout(connectSse, 10_000);
+    };
+  }, [qc]);
+
+  useEffect(() => {
+    connectSse();
+    return () => { esRef.current?.close(); };
+  }, [connectSse]);
+
+  // ── Mutations ───────────────────────────────────────────────────────────────
+
   const lockMutation = useMutation({
     mutationFn: ({ id, locked }: { id: string; locked: boolean }) =>
-      locked
-        ? api.post(`/admin/users/${id}/lock`)
-        : api.post(`/admin/users/${id}/unlock`),
+      locked ? api.post(`/admin/users/${id}/lock`) : api.post(`/admin/users/${id}/unlock`),
     onSuccess: (_, vars) => {
       toast.success(vars.locked ? 'User locked' : 'User unlocked');
       qc.invalidateQueries({ queryKey: ['admin', 'users'] });
@@ -134,32 +223,94 @@ export default function AdminDashboard() {
   return (
     <Layout>
       <div className="max-w-6xl mx-auto space-y-6">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Admin Dashboard</h1>
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Admin Dashboard</h1>
+          <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+            {sseConnected ? (
+              <><Wifi size={13} className="text-green-500" /> Live</>
+            ) : (
+              <><WifiOff size={13} className="text-gray-400" /> Reconnecting…</>
+            )}
+          </div>
+        </div>
 
-        {/* Stats */}
+        {/* Security alert banner */}
+        {alerts.length > 0 && (
+          <div className="rounded-xl border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <AlertTriangle size={16} className="text-red-600 dark:text-red-400 shrink-0" />
+                <span className="text-sm font-semibold text-red-800 dark:text-red-300">
+                  {alerts.length} Security Alert{alerts.length > 1 ? 's' : ''} Detected
+                </span>
+              </div>
+              <button
+                onClick={() => setAlerts([])}
+                className="text-red-400 hover:text-red-600 dark:hover:text-red-300"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <ul className="space-y-1">
+              {alerts.map((a, i) => (
+                <li key={i} className="text-xs text-red-700 dark:text-red-400 flex items-start gap-1.5">
+                  <span className={clsx(
+                    'rounded-full px-1.5 py-0.5 font-medium shrink-0',
+                    a.severity === 'critical'
+                      ? 'bg-red-200 dark:bg-red-800 text-red-800 dark:text-red-200'
+                      : 'bg-orange-200 dark:bg-orange-800 text-orange-800 dark:text-orange-200'
+                  )}>
+                    {a.severity.toUpperCase()}
+                  </span>
+                  {a.message}
+                  <span className="text-red-400 ml-auto shrink-0">
+                    {new Date(a.detectedAt).toLocaleTimeString()}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Stats grid */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard icon={Users} label="Total Users" value={stats?.totalUsers ?? '—'} />
-          <StatCard
-            icon={Crown}
-            label="Premium Users"
-            value={stats?.premiumUsers ?? '—'}
-            color="text-yellow-500"
-          />
-          <StatCard
-            icon={FileText}
-            label="Total Documents"
-            value={stats?.totalDocuments ?? '—'}
-            color="text-blue-500"
-          />
-          <StatCard
-            icon={HardDrive}
-            label="Storage Used"
-            value={stats ? formatBytes(stats.totalStorageUsed) : '—'}
+          <StatCard icon={Crown} label="Premium Users" value={stats?.premiumUsers ?? '—'} color="text-yellow-500" />
+          <StatCard icon={FileText} label="Documents" value={stats?.totalDocuments ?? '—'} color="text-blue-500" />
+          <StatCard icon={HardDrive} label="Storage Used"
+            value={stats?.totalStorageUsedBytes ? formatBytes(stats.totalStorageUsedBytes) : '—'}
             color="text-purple-500"
           />
         </div>
 
-        {/* Users table + Activity */}
+        {/* Live security stats (pushed via SSE) */}
+        {liveStats && (
+          <div className="grid grid-cols-3 gap-4">
+            <StatCard
+              icon={AlertTriangle}
+              label="Failed logins (5 min)"
+              value={liveStats.failedLoginsFiveMin}
+              color="text-red-500"
+              highlight={liveStats.failedLoginsFiveMin > 5}
+            />
+            <StatCard
+              icon={Users}
+              label="New users (24 h)"
+              value={liveStats.newUsers}
+              color="text-green-500"
+            />
+            <StatCard
+              icon={Lock}
+              label="Locked accounts"
+              value={liveStats.lockedAccounts}
+              color="text-orange-500"
+              highlight={liveStats.lockedAccounts > 0}
+            />
+          </div>
+        )}
+
+        {/* Users table + Recent activity */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
           {/* Users table */}
           <div className="lg:col-span-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden">
@@ -192,56 +343,37 @@ export default function AdminDashboard() {
                   const isLocked = u.lockedUntil && new Date(u.lockedUntil) > new Date();
                   return (
                     <div key={u.id} className="flex items-center gap-3 px-5 py-3.5">
-                      {/* Avatar */}
                       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-600 text-white text-xs font-semibold">
                         {u.username.slice(0, 2).toUpperCase()}
                       </div>
-
-                      {/* Info */}
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
                             {u.username}
                           </span>
-                          <span
-                            className={clsx(
-                              'rounded-full px-1.5 py-0.5 text-xs font-medium',
-                              ROLE_COLORS[u.role]
-                            )}
-                          >
+                          <span className={clsx('rounded-full px-1.5 py-0.5 text-xs font-medium', ROLE_COLORS[u.role])}>
                             {u.role}
                           </span>
-                          {u.isPremium && (
-                            <Crown size={11} className="text-yellow-500 shrink-0" />
-                          )}
-                          {u.mfaEnabled ? (
-                            <ShieldCheck size={11} className="text-green-500 shrink-0" />
-                          ) : (
-                            <ShieldOff size={11} className="text-gray-400 shrink-0" />
-                          )}
+                          {u.isPremium && <Crown size={11} className="text-yellow-500 shrink-0" />}
+                          {u.mfaEnabled
+                            ? <ShieldCheck size={11} className="text-green-500 shrink-0" />
+                            : <ShieldOff size={11} className="text-gray-400 shrink-0" />}
                           {isLocked && (
                             <span className="rounded-full bg-red-100 dark:bg-red-900/20 px-1.5 py-0.5 text-xs text-red-600 dark:text-red-400 font-medium">
                               Locked
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                          {u.email}
-                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{u.email}</p>
                       </div>
-
-                      {/* Actions */}
                       <div className="flex items-center gap-1 shrink-0">
                         {/* Role dropdown */}
                         <div className="relative">
                           <button
-                            onClick={() =>
-                              setRoleDropdown(roleDropdown === u.id ? null : u.id)
-                            }
+                            onClick={() => setRoleDropdown(roleDropdown === u.id ? null : u.id)}
                             className="flex items-center gap-0.5 rounded-md px-2 py-1 text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
                           >
-                            Role
-                            <ChevronDown size={11} />
+                            Role <ChevronDown size={11} />
                           </button>
                           {roleDropdown === u.id && (
                             <div className="absolute right-0 top-full mt-1 z-20 w-28 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-lg py-1">
@@ -262,7 +394,6 @@ export default function AdminDashboard() {
                             </div>
                           )}
                         </div>
-
                         {/* Lock/unlock */}
                         <button
                           onClick={() => lockMutation.mutate({ id: u.id, locked: !isLocked })}
@@ -284,7 +415,6 @@ export default function AdminDashboard() {
               </div>
             )}
 
-            {/* Pagination */}
             {pagination && pagination.pages > 1 && (
               <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 dark:border-gray-800">
                 <span className="text-xs text-gray-500">{pagination.total} users</span>
@@ -296,9 +426,7 @@ export default function AdminDashboard() {
                   >
                     Prev
                   </button>
-                  <span className="text-xs text-gray-500 self-center">
-                    {page}/{pagination.pages}
-                  </span>
+                  <span className="text-xs text-gray-500 self-center">{page}/{pagination.pages}</span>
                   <button
                     onClick={() => setPage((p) => Math.min(pagination.pages, p + 1))}
                     disabled={page === pagination.pages}
@@ -317,7 +445,7 @@ export default function AdminDashboard() {
               Recent Activity
             </h2>
             <ActivityFeed
-              logs={(stats?.recentLogs ?? []) as ActivityLog[]}
+              logs={(stats?.recentAlerts ?? []) as ActivityLog[]}
               isLoading={!stats}
             />
           </div>

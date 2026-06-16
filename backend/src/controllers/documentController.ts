@@ -149,8 +149,7 @@ export const uploadDocument = asyncHandler(async (req: Request, res: Response) =
     action: 'DOCUMENT_UPLOADED',
     resourceType: 'DOCUMENT',
     resourceId: doc.id,
-    ipAddress: req.ip,
-    userAgent: req.headers['user-agent'],
+    req,
     metadata: { mimeType: file.mimetype, sizeBytes: file.size },
   });
 
@@ -185,8 +184,7 @@ export const downloadDocument = asyncHandler(async (req: Request, res: Response)
         action: 'UNAUTHORIZED_ACCESS_ATTEMPT',
         resourceType: 'DOCUMENT',
         resourceId: id,
-        ipAddress: req.ip,
-        userAgent: req.headers['user-agent'],
+        req,
       });
       throw new AppError(403, 'Access denied');
     }
@@ -207,8 +205,7 @@ export const downloadDocument = asyncHandler(async (req: Request, res: Response)
     action: 'DOCUMENT_DOWNLOADED',
     resourceType: 'DOCUMENT',
     resourceId: id,
-    ipAddress: req.ip,
-    userAgent: req.headers['user-agent'],
+    req,
   });
 
   // Use the sanitized title for Content-Disposition, never the raw fileKey.
@@ -303,8 +300,7 @@ export const deleteDocument = asyncHandler(async (req: Request, res: Response) =
     action: 'DOCUMENT_DELETED',
     resourceType: 'DOCUMENT',
     resourceId: id,
-    ipAddress: req.ip,
-    userAgent: req.headers['user-agent'],
+    req,
   });
 
   res.json({ success: true, message: 'Document deleted' });
@@ -354,8 +350,7 @@ export const shareDocument = asyncHandler(async (req: Request, res: Response) =>
     action: 'DOCUMENT_SHARED',
     resourceType: 'DOCUMENT',
     resourceId: id,
-    ipAddress: req.ip,
-    userAgent: req.headers['user-agent'],
+    req,
     metadata: { recipientEmailHash: hashEmail(targetEmail), permission },
   });
 
@@ -391,8 +386,7 @@ export const acceptShare = asyncHandler(async (req: Request, res: Response) => {
     action: 'SHARE_ACCEPTED',
     resourceType: 'DOCUMENT',
     resourceId: share.documentId,
-    ipAddress: req.ip,
-    userAgent: req.headers['user-agent'],
+    req,
   });
 
   res.json({ success: true, documentId: share.documentId });
@@ -454,8 +448,7 @@ export const requestSignature = asyncHandler(async (req: Request, res: Response)
     action: 'SIGNATURE_REQUESTED',
     resourceType: 'DOCUMENT',
     resourceId: id,
-    ipAddress: req.ip,
-    userAgent: req.headers['user-agent'],
+    req,
     metadata: { signerCount: signerEmails.length },
   });
 
@@ -491,8 +484,7 @@ export const signDocument = asyncHandler(async (req: Request, res: Response) => 
     action: 'DOCUMENT_SIGNED',
     resourceType: 'DOCUMENT',
     resourceId: id,
-    ipAddress: req.ip,
-    userAgent: req.headers['user-agent'],
+    req,
   });
 
   // Check if all signatures are now collected.

@@ -91,8 +91,7 @@ export const updateProfile = asyncHandler(async (req: Request, res: Response) =>
     action: 'PROFILE_UPDATED',
     resourceType: 'USER',
     resourceId: req.user!.id,
-    ipAddress: req.ip,
-    userAgent: req.headers['user-agent'],
+    req,
     metadata: { fields: Object.keys(parsed.data) },
   });
 
@@ -149,8 +148,7 @@ export const changePassword = asyncHandler(async (req: Request, res: Response) =
     action: 'PASSWORD_CHANGED',
     resourceType: 'USER',
     resourceId: user.id,
-    ipAddress: req.ip,
-    userAgent: req.headers['user-agent'],
+    req,
   });
 
   res.json({ success: true, message: 'Password changed. Please log in again.' });
@@ -203,8 +201,7 @@ export const deleteAccount = asyncHandler(async (req: Request, res: Response) =>
     action: 'ACCOUNT_DELETED',
     resourceType: 'USER',
     resourceId: user.id,
-    ipAddress: req.ip,
-    userAgent: req.headers['user-agent'],
+    req,
   });
 
   res.clearCookie('access_token');
@@ -265,8 +262,7 @@ export const exportData = asyncHandler(async (req: Request, res: Response) => {
     action: 'DATA_EXPORTED',
     resourceType: 'USER',
     resourceId: userId,
-    ipAddress: req.ip,
-    userAgent: req.headers['user-agent'],
+    req,
   });
 
   res.setHeader('Content-Disposition', 'attachment; filename="docuvault-export.json"');

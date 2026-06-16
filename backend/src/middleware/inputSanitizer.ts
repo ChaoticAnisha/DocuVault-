@@ -63,9 +63,7 @@ export const sanitizeInput = (req: Request, _res: Response, next: NextFunction):
       userId: req.user?.id ?? null,
       action: 'XSS_ATTEMPT_BLOCKED',
       resourceType: 'REQUEST',
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
-      // Record where it happened, not the payload itself.
+      req,
       metadata: { method: req.method, path: req.originalUrl.split('?')[0] },
     });
   }

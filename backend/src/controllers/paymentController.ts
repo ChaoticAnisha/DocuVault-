@@ -63,8 +63,7 @@ export const createCheckoutSession = asyncHandler(async (req: Request, res: Resp
     userId,
     action: 'PAYMENT_INITIATED',
     resourceType: 'TRANSACTION',
-    ipAddress: req.ip,
-    userAgent: req.headers['user-agent'],
+    req,
     metadata: { sessionId: session.id },
   });
 

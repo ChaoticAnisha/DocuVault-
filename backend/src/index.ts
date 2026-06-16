@@ -15,6 +15,7 @@ import { csrfMiddleware } from './middleware/csrf';
 import { errorHandler } from './middleware/errorHandler';
 import { generalLimiter } from './middleware/rateLimiter';
 import { runSecurityAudit } from './utils/securityAudit';
+import { scheduleAlertChecks } from './utils/securityMonitor';
 import routes from './routes';
 
 // Verify all required secrets and env vars before accepting traffic.
@@ -23,6 +24,9 @@ runSecurityAudit();
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '5000', 10);
+
+// Trust the first proxy hop (nginx) so req.ip reflects the real client IP.
+app.set('trust proxy', 1);
 
 // ── Security headers (replaces the bare helmet() call) ────────────────────────
 app.use(securityHeaders);
@@ -80,6 +84,7 @@ app.use(errorHandler);
 
 app.listen(PORT, () => {
   logger.info(`Server running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
+  scheduleAlertChecks();
 });
 
 export default app;

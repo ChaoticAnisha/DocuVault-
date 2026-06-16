@@ -143,8 +143,7 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
     action: 'USER_REGISTERED',
     resourceType: 'USER',
     resourceId: user.id,
-    ipAddress: req.ip,
-    userAgent: req.headers['user-agent'],
+    req,
   });
 
   res.status(201).json({
@@ -182,8 +181,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
       action: 'FAILED_LOGIN_ATTEMPT',
       resourceType: 'USER',
       resourceId: user.id,
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
+      req,
       metadata: { attempts, locked: shouldLock },
     });
     throw new AppError(401, 'Invalid email or password');
@@ -226,8 +224,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
     action: 'LOGIN_SUCCESS',
     resourceType: 'USER',
     resourceId: user.id,
-    ipAddress: req.ip,
-    userAgent: req.headers['user-agent'],
+    req,
   });
 
   res.json({
@@ -285,8 +282,7 @@ export const verifyMfa = asyncHandler(async (req: Request, res: Response) => {
     action: 'MFA_VERIFIED',
     resourceType: 'USER',
     resourceId: user.id,
-    ipAddress: req.ip,
-    userAgent: req.headers['user-agent'],
+    req,
   });
 
   res.json({
@@ -318,8 +314,7 @@ export const logout = asyncHandler(async (req: Request, res: Response) => {
     action: 'LOGOUT',
     resourceType: 'USER',
     resourceId: req.user!.id,
-    ipAddress: req.ip,
-    userAgent: req.headers['user-agent'],
+    req,
   });
 
   res.json({ success: true, message: 'Logged out successfully' });
@@ -415,8 +410,7 @@ export const resetPassword = asyncHandler(async (req: Request, res: Response) =>
     action: 'PASSWORD_RESET',
     resourceType: 'USER',
     resourceId: user.id,
-    ipAddress: req.ip,
-    userAgent: req.headers['user-agent'],
+    req,
   });
 
   res.json({ success: true, message: 'Password reset successfully. Please log in.' });
@@ -507,8 +501,7 @@ export const verifyMfaSetup = asyncHandler(async (req: Request, res: Response) =
     action: 'MFA_ENABLED',
     resourceType: 'USER',
     resourceId: user.id,
-    ipAddress: req.ip,
-    userAgent: req.headers['user-agent'],
+    req,
   });
 
   res.json({ success: true, message: 'MFA enabled successfully.' });
@@ -537,8 +530,7 @@ export const disableMfa = asyncHandler(async (req: Request, res: Response) => {
     action: 'MFA_DISABLED',
     resourceType: 'USER',
     resourceId: user.id,
-    ipAddress: req.ip,
-    userAgent: req.headers['user-agent'],
+    req,
   });
 
   res.json({ success: true, message: 'MFA disabled successfully.' });

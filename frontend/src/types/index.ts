@@ -78,8 +78,12 @@ export interface AdminStats {
   totalUsers: number;
   premiumUsers: number;
   totalDocuments: number;
-  totalStorageUsed: string;
-  recentLogs: ActivityLog[];
+  totalStorageUsedBytes: string;
+  newUsersToday: number;
+  lockedAccounts: number;
+  failedLoginsDay: number;
+  failedLoginsFiveMin: number;
+  recentAlerts: ActivityLog[];
 }
 
 export interface PaginatedResponse<T> {
