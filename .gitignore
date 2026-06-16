@@ -30,3 +30,7 @@ Thumbs.db
 
 # TypeScript
 *.tsbuildinfo
+
+# Encrypted user uploads (never commit)
+backend/uploads/*
+!backend/uploads/.gitkeep

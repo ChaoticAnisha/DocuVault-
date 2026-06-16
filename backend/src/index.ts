@@ -14,7 +14,7 @@ import { sanitizeInput } from './middleware/inputSanitizer';
 import { csrfMiddleware } from './middleware/csrf';
 import { errorHandler } from './middleware/errorHandler';
 import { generalLimiter } from './middleware/rateLimiter';
-import authRoutes from './routes/authRoutes';
+import routes from './routes';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '5000', 10);
@@ -68,7 +68,7 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-app.use('/api/auth', authRoutes);
+app.use('/api', routes);
 
 // ── Error handler (must be last) ──────────────────────────────────────────────
 app.use(errorHandler);

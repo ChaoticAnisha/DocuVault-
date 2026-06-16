@@ -1,5 +1,6 @@
 export * from './jwt';
 export * from './encryption';
+export * from './fileEncryption';
 export * from './tokens';
 export * from './passwordPolicy';
 export * from './email';

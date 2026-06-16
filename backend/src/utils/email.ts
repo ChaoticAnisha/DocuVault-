@@ -49,3 +49,46 @@ export const sendPasswordResetEmail = (email: string, token: string): Promise<vo
       <p>This link expires in 1 hour. If you did not request this, ignore this email.</p>
     `,
   });
+
+export const sendShareEmail = (
+  to: string,
+  shareToken: string,
+  documentTitle: string,
+  permission: string
+): Promise<void> =>
+  send({
+    to,
+    subject: `${documentTitle} has been shared with you on DocuVault`,
+    html: `
+      <p>A document has been shared with you with <strong>${permission}</strong> permission.</p>
+      <p><a href="${FRONTEND}/share/${shareToken}">Open document</a></p>
+      <p>This link may expire. Do not forward it.</p>
+    `,
+  });
+
+export const sendSignatureRequestEmail = (
+  to: string,
+  documentTitle: string,
+  documentId: string
+): Promise<void> =>
+  send({
+    to,
+    subject: `Signature requested: ${documentTitle}`,
+    html: `
+      <p>Your signature has been requested on <strong>${documentTitle}</strong>.</p>
+      <p><a href="${FRONTEND}/documents/${documentId}/sign">Review and sign</a></p>
+    `,
+  });
+
+export const sendSignatureCompleteEmail = (
+  ownerEmail: string,
+  documentTitle: string
+): Promise<void> =>
+  send({
+    to: ownerEmail,
+    subject: `All signatures collected: ${documentTitle}`,
+    html: `
+      <p>All requested signatures for <strong>${documentTitle}</strong> have been collected.</p>
+      <p><a href="${FRONTEND}/dashboard">View in DocuVault</a></p>
+    `,
+  });
