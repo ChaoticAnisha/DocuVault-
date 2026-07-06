@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import HCaptcha from '@hcaptcha/react-hcaptcha';
 import api from '../api/axios';
 import AuthCard from '../components/ui/AuthCard';
 import FormField from '../components/ui/FormField';
@@ -29,6 +30,9 @@ type FormData = z.infer<typeof schema>;
 
 export default function Register() {
   const [done, setDone] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState('');
+  const captchaRef = useRef<HCaptcha>(null);
+
   const {
     register,
     handleSubmit,
@@ -39,10 +43,18 @@ export default function Register() {
   const password = watch('password', '');
 
   const onSubmit = async (data: FormData) => {
+    if (!captchaToken) {
+      toast.error('Please complete the CAPTCHA verification');
+      return;
+    }
+
     try {
-      await api.post('/auth/register', data);
+      await api.post('/auth/register', { ...data, captchaToken });
+      captchaRef.current?.resetCaptcha();
       setDone(true);
     } catch (err: unknown) {
+      captchaRef.current?.resetCaptcha();
+      setCaptchaToken('');
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
         'Registration failed. Please try again.';
@@ -100,6 +112,15 @@ export default function Register() {
           error={errors.confirmPassword?.message}
           {...register('confirmPassword')}
         />
+
+        <div className="mt-4 flex justify-center">
+          <HCaptcha
+            sitekey={import.meta.env.VITE_HCAPTCHA_SITE_KEY}
+            onVerify={(token) => setCaptchaToken(token)}
+            onExpire={() => setCaptchaToken('')}
+            ref={captchaRef}
+          />
+        </div>
 
         <button
           type="submit"

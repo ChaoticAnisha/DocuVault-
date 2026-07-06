@@ -1,8 +1,10 @@
+import { useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import HCaptcha from '@hcaptcha/react-hcaptcha';
 import { useAuthStore } from '../store/authStore';
 import AuthCard from '../components/ui/AuthCard';
 import FormField from '../components/ui/FormField';
@@ -25,6 +27,9 @@ export default function Login() {
   const { login } = useAuthStore();
   const from = (location.state as LocationState)?.from?.pathname ?? '/dashboard';
 
+  const [captchaToken, setCaptchaToken] = useState('');
+  const captchaRef = useRef<HCaptcha>(null);
+
   const {
     register,
     handleSubmit,
@@ -33,29 +38,36 @@ export default function Login() {
   } = useForm<FormData>({ resolver: zodResolver(schema) });
 
   const onSubmit = async (data: FormData) => {
+    if (!captchaToken) {
+      toast.error('Please complete the CAPTCHA verification');
+      return;
+    }
+
     try {
-      const result = await login(data.email, data.password);
+      const result = await login(data.email, data.password, captchaToken);
+      captchaRef.current?.resetCaptcha();
 
       if (result.requiresMfa && result.tempToken) {
-        // Pass the tempToken via router state — never localStorage or URL.
         navigate('/verify-mfa', { state: { tempToken: result.tempToken }, replace: true });
         return;
       }
 
       navigate(from, { replace: true });
     } catch (err: unknown) {
+      captchaRef.current?.resetCaptcha();
+      setCaptchaToken('');
+
       const response = (err as { response?: { data?: { message?: string }; status?: number } })
         ?.response;
       const status = response?.status;
       const msg = response?.data?.message ?? 'Login failed';
 
       if (status === 429) {
-        // Rate limit — extract wait time if present in the message
         setError('root', { message: `Too many attempts. ${msg}` });
         return;
       }
       if (status === 423) {
-        setError('root', { message: msg }); // account locked
+        setError('root', { message: msg });
         return;
       }
       toast.error(msg);
@@ -90,6 +102,15 @@ export default function Login() {
           <Link to="/forgot-password" className="text-xs text-brand-600 hover:underline">
             Forgot password?
           </Link>
+        </div>
+
+        <div className="mt-4 flex justify-center">
+          <HCaptcha
+            sitekey={import.meta.env.VITE_HCAPTCHA_SITE_KEY}
+            onVerify={(token) => setCaptchaToken(token)}
+            onExpire={() => setCaptchaToken('')}
+            ref={captchaRef}
+          />
         </div>
 
         <button

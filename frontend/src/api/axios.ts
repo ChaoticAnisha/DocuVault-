@@ -61,6 +61,9 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !original._retry) {
       original._retry = true;
       try {
+        // With 15-day access tokens, 401s from token expiry will be rare.
+        // This interceptor still handles revoked tokens (logout on another device,
+        // admin lock, password change) which invalidate the token before expiry.
         await axios.post(
           'http://localhost:5000/api/auth/refresh',
           {},

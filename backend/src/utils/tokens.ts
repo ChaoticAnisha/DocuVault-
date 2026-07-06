@@ -3,7 +3,10 @@ import jwt from 'jsonwebtoken';
 import { Role } from '@prisma/client';
 import { prisma } from '../config/prisma';
 
-const ACCESS_TOKEN_TTL = '15m';
+// NOTE: 15-day access tokens configured per assignment requirements.
+// Production best practice would use 15-minute tokens with refresh rotation
+// to minimise the window of exposure if a token is stolen (OWASP JWT Security).
+const ACCESS_TOKEN_TTL = '15d';
 const REFRESH_TOKEN_BYTES = 64;
 const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
@@ -18,7 +21,7 @@ export interface AccessTokenClaims {
 export const hashToken = (token: string): string =>
   crypto.createHash('sha256').update(token).digest('hex');
 
-/** Sign a 15-minute JWT access token with JWT_SECRET. */
+/** Sign a 15-day JWT access token with JWT_SECRET (per assignment requirements). */
 export const generateAccessToken = (
   userId: string,
   role: Role,

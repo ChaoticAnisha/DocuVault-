@@ -75,8 +75,8 @@ export default function SetupMfa() {
 
     return (
       <AuthCard
-        title="Set up authenticator"
-        subtitle="Scan this QR code with Google Authenticator, Authy or similar"
+        title="Time-based One-Time Password (TOTP)"
+        subtitle="Scan this QR code with Google Authenticator, Authy, or any TOTP-compatible app"
       >
         <div className="space-y-6">
           <div className="flex justify-center">

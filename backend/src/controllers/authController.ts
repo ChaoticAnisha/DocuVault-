@@ -12,6 +12,7 @@ import { validatePasswordStrength, isPasswordReused, isPasswordExpired } from '.
 import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/email';
 import { AppError } from '../utils/AppError';
 import { asyncHandler } from '../utils/asyncHandler';
+import { verifyCaptcha } from '../utils/captcha';
 
 const ME_SELECT = {
   id: true,
@@ -41,17 +42,20 @@ export const getMe = asyncHandler(async (req: Request, res: Response) => {
 const isProd = () => process.env.NODE_ENV === 'production';
 
 const setAuthCookies = (res: Response, accessToken: string, refreshToken: string): void => {
+  // NOTE: 15-day access tokens configured per assignment requirements.
+  // Production best practice would use 15-minute tokens with refresh rotation
+  // to minimise the window of exposure if a token is stolen (OWASP JWT Security).
   res.cookie('access_token', accessToken, {
     httpOnly: true,
     secure: isProd(),
     sameSite: 'strict',
-    maxAge: 15 * 60 * 1000, // 15 min
+    maxAge: 15 * 24 * 60 * 60 * 1000, // 15 days (per assignment requirements)
   });
   res.cookie('refresh_token', refreshToken, {
     httpOnly: true,
     secure: isProd(),
     sameSite: 'strict',
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days (longer than access token)
     path: '/api/auth/refresh',
   });
 };
@@ -106,6 +110,15 @@ const disableMfaSchema = z.object({
 // ─── Controller functions ────────────────────────────────────────────────────
 
 export const register = asyncHandler(async (req: Request, res: Response) => {
+  // CAPTCHA verification — enforced in production, bypassed in development.
+  if (process.env.NODE_ENV !== 'development') {
+    const captchaValid = await verifyCaptcha(req.body.captchaToken);
+    if (!captchaValid) {
+      res.status(400).json({ success: false, message: 'CAPTCHA verification failed. Please try again.' });
+      return;
+    }
+  }
+
   const parsed = registerSchema.safeParse(req.body);
   if (!parsed.success) {
     throw new AppError(400, parsed.error.errors.map((e) => e.message).join(', '));
@@ -153,6 +166,15 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const login = asyncHandler(async (req: Request, res: Response) => {
+  // CAPTCHA verification — enforced in production, bypassed in development.
+  if (process.env.NODE_ENV !== 'development') {
+    const captchaValid = await verifyCaptcha(req.body.captchaToken);
+    if (!captchaValid) {
+      res.status(400).json({ success: false, message: 'CAPTCHA verification failed. Please try again.' });
+      return;
+    }
+  }
+
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) throw new AppError(400, 'Invalid email or password');
   const { email, password } = parsed.data;
@@ -168,12 +190,12 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
 
   if (!passwordMatch) {
     const attempts = user.failedLoginAttempts + 1;
-    const shouldLock = attempts >= 5;
+    const shouldLock = attempts >= 10;
     await prisma.user.update({
       where: { id: user.id },
       data: {
         failedLoginAttempts: attempts,
-        lockedUntil: shouldLock ? new Date(Date.now() + 15 * 60 * 1000) : undefined,
+        lockedUntil: shouldLock ? new Date(Date.now() + 30 * 60 * 1000) : undefined,
       },
     });
     await auditLog({
@@ -184,6 +206,9 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
       req,
       metadata: { attempts, locked: shouldLock },
     });
+    if (shouldLock) {
+      throw new AppError(423, 'Account locked after 10 failed attempts. Try again in 30 minutes.');
+    }
     throw new AppError(401, 'Invalid email or password');
   }
 
@@ -328,7 +353,7 @@ export const refreshToken = asyncHandler(async (req: Request, res: Response) => 
 
   setAuthCookies(res, accessToken, newRefresh);
 
-  const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+  const expiresAt = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000);
   res.json({ success: true, expiresAt });
 });
 

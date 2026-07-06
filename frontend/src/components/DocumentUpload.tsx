@@ -86,7 +86,6 @@ export default function DocumentUpload({ onSuccess }: Props) {
 
     try {
       await api.post('/documents/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
         onUploadProgress: (e) => {
           if (e.total) setProgress(Math.round((e.loaded / e.total) * 100));
         },

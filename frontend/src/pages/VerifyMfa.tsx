@@ -69,8 +69,8 @@ export default function VerifyMfa() {
 
   return (
     <AuthCard
-      title="Two-factor authentication"
-      subtitle="Open your authenticator app and enter the 6-digit code"
+      title="Two-Factor Authentication (TOTP)"
+      subtitle="Enter the 6-digit code from your authenticator app (Google Authenticator / Authy)"
     >
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
@@ -89,6 +89,7 @@ export default function VerifyMfa() {
             className="block w-full text-center text-3xl font-mono tracking-[0.5em] rounded-lg border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:border-brand-500 focus:ring-brand-200"
             autoComplete="one-time-code"
           />
+          <p className="mt-2 text-center text-xs text-gray-400">Codes refresh every 30 seconds</p>
         </div>
 
         {attemptsLeft !== null && (

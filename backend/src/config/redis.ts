@@ -1,10 +1,6 @@
-import Redis from 'ioredis';
-import { logger } from './logger';
+// Redis disabled for local development.
+// Rate limiting and session storage use in-memory stores instead.
+// To re-enable Redis: install ioredis, connect-redis, rate-limit-redis
+// and restore the original implementation.
 
-export const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
-  lazyConnect: true,
-  retryStrategy: (times) => Math.min(times * 50, 2000),
-});
-
-redis.on('connect', () => logger.info('Redis connected'));
-redis.on('error', (err) => logger.error('Redis error', err));
+export const redis = null;
