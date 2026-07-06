@@ -11,6 +11,7 @@ import {
 } from '../controllers/adminController';
 import { verifyAccessToken, requireRole } from '../middleware/auth';
 import { csrfMiddleware } from '../middleware/csrf';
+import { getBlockedIPsList } from '../middleware/ipBlocker';
 
 const adminOnly = [verifyAccessToken, requireRole([Role.ADMIN])];
 
@@ -26,5 +27,8 @@ router.get('/stats', ...adminOnly, getDashboardStats);
 router.get('/dashboard', ...adminOnly, getDashboardStats);
 // SSE: GET, no CSRF token needed; auth via httpOnly access_token cookie
 router.get('/events', ...adminOnly, adminSseEvents);
+router.get('/blocked-ips', ...adminOnly, (_req, res) => {
+  res.json({ success: true, blockedIPs: getBlockedIPsList() });
+});
 
 export default router;

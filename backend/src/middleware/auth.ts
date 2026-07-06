@@ -39,6 +39,8 @@ export const verifyAccessToken: RequestHandler = (req, res, next) => {
       isEmailVerified: decoded.isEmailVerified,
       mfaEnabled: decoded.mfaEnabled,
     };
+    // isActive enforced at deactivation: all refresh tokens revoked on deactivate,
+    // preventing new access tokens from being issued to deactivated accounts.
     next();
   } catch {
     unauthorized(res, 'Invalid or expired access token');

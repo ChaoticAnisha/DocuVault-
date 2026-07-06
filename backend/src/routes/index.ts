@@ -5,10 +5,11 @@ import userRoutes from './userRoutes';
 import adminRoutes from './adminRoutes';
 import paymentRoutes from './paymentRoutes';
 import logRoutes from './logRoutes';
+import { ipBlockMiddleware } from '../middleware/ipBlocker';
 
 const router = Router();
 
-router.use('/auth', authRoutes);
+router.use('/auth', ipBlockMiddleware, authRoutes);
 router.use('/documents', documentRoutes);
 router.use('/users', userRoutes);
 router.use('/admin', adminRoutes);

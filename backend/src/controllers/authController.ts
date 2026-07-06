@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
@@ -13,6 +13,7 @@ import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/email';
 import { AppError } from '../utils/AppError';
 import { asyncHandler } from '../utils/asyncHandler';
 import { verifyCaptcha } from '../utils/captcha';
+import { getClientIp, recordFailedAttempt, clearFailedAttempts } from '../middleware/ipBlocker';
 
 const ME_SELECT = {
   id: true,
@@ -180,7 +181,10 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   const { email, password } = parsed.data;
 
   const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
-  if (!user) throw new AppError(401, 'Invalid email or password');
+  if (!user) {
+    recordFailedAttempt(getClientIp(req));
+    throw new AppError(401, 'Invalid email or password');
+  }
 
   if (!user.passwordHash) {
     throw new AppError(400, 'This account uses Google sign-in. Please use "Continue with Google".');
@@ -189,6 +193,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   const passwordMatch = await verifyPassword(password, user.passwordHash);
 
   if (!passwordMatch) {
+    recordFailedAttempt(getClientIp(req));
     const attempts = user.failedLoginAttempts + 1;
     const shouldLock = attempts >= 10;
     await prisma.user.update({
@@ -217,6 +222,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
     where: { id: user.id },
     data: { failedLoginAttempts: 0 },
   });
+  clearFailedAttempts(getClientIp(req));
 
   if (!user.isEmailVerified) {
     throw new AppError(403, 'Please verify your email address before logging in.');
@@ -560,6 +566,39 @@ export const disableMfa = asyncHandler(async (req: Request, res: Response) => {
 
   res.json({ success: true, message: 'MFA disabled successfully.' });
 });
+
+export const deactivateAccount = async (req: any, res: Response, next: NextFunction) => {
+  try {
+    const { password } = req.body;
+    if (!password) {
+      return res.status(400).json({ error: 'Password is required to deactivate your account.' });
+    }
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!user || !user.passwordHash) {
+      return res.status(400).json({ error: 'Cannot deactivate OAuth-only accounts through this endpoint.' });
+    }
+    const isValid = await verifyPassword(password, user.passwordHash);
+    if (!isValid) {
+      return res.status(400).json({ error: 'Incorrect password. Account not deactivated.' });
+    }
+    await prisma.user.update({
+      where: { id: req.user.id },
+      data: { isActive: false },
+    });
+    await prisma.refreshToken.updateMany({
+      where: { userId: req.user.id },
+      data: { isRevoked: true },
+    });
+    await auditLog({ userId: req.user.id, action: 'ACCOUNT_DEACTIVATED', req });
+    res.clearCookie('access_token');
+    res.clearCookie('refresh_token');
+    return res.status(200).json({
+      message: 'Your account has been deactivated. You have been logged out.',
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
 
 export const googleOAuthCallback = asyncHandler(async (req: Request, res: Response) => {
   // At this point passport has already found/created the user and attached it

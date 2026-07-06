@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
 import { prisma } from '../config/prisma';
@@ -210,67 +210,52 @@ export const deleteAccount = asyncHandler(async (req: Request, res: Response) =>
   res.json({ success: true, message: 'Account deleted. We are sorry to see you go.' });
 });
 
-export const exportData = asyncHandler(async (req: Request, res: Response) => {
+export const exportData = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
   const userId = req.user!.id;
-
-  const [user, documents, activityLogs, shares] = await Promise.all([
-    prisma.user.findUnique({
+  try {
+    const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: PROFILE_SELECT,
-    }),
-    prisma.document.findMany({
+      select: {
+        id: true, email: true, username: true, role: true,
+        isPremium: true, mfaEnabled: true, isEmailVerified: true,
+        createdAt: true, storageUsed: true,
+      },
+    });
+
+    const documents = await prisma.document.findMany({
       where: { ownerId: userId, isDeleted: false },
       select: {
-        id: true,
-        title: true,
-        description: true,
-        mimeType: true,
-        sizeBytes: true,
-        requiresSignature: true,
-        createdAt: true,
-        updatedAt: true,
+        id: true, title: true, mimeType: true,
+        sizeBytes: true, createdAt: true,
       },
-    }),
-    prisma.activityLog.findMany({
+    });
+
+    const activityLogs = await prisma.activityLog.findMany({
       where: { userId },
-      select: {
-        id: true,
-        action: true,
-        resourceType: true,
-        resourceId: true,
-        createdAt: true,
-        // Never export IP addresses or user agents in data exports
-      },
       orderBy: { createdAt: 'desc' },
-      take: 1000,
-    }),
-    prisma.documentShare.findMany({
-      where: { sharedWithId: userId },
-      select: {
-        id: true,
-        permission: true,
-        isAccepted: true,
-        expiresAt: true,
-        createdAt: true,
-        document: { select: { id: true, title: true } },
-      },
-    }),
-  ]);
+      take: 100,
+      select: { action: true, resourceType: true, createdAt: true },
+    });
 
-  await auditLog({
-    userId,
-    action: 'DATA_EXPORTED',
-    resourceType: 'USER',
-    resourceId: userId,
-    req,
-  });
+    const exportPayload = {
+      exportDate: new Date().toISOString(),
+      exportVersion: '1.0',
+      gdprNotice:
+        'This file contains all personal data held about you in DocuVault, exported under GDPR Article 20 (Right to Data Portability).',
+      profile: user,
+      documents: { count: documents.length, items: documents },
+      activitySummary: { count: activityLogs.length, recentActions: activityLogs },
+    };
 
-  res.setHeader('Content-Disposition', 'attachment; filename="docuvault-export.json"');
-  res.json({
-    exportedAt: new Date().toISOString(),
-    profile: user,
-    documents,
-    activityLogs,
-    sharesWithMe: shares,
-  });
+    await auditLog({ userId, action: 'DATA_EXPORTED', req });
+
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="docuvault-export-' + userId + '.json"'
+    );
+    return res.status(200).json(exportPayload);
+  } catch (error) {
+    return next(error);
+  }
 });

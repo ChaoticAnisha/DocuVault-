@@ -14,6 +14,7 @@ import {
   disableMfa,
   googleOAuthCallback,
   getMe,
+  deactivateAccount,
 } from '../controllers/authController';
 import {
   authLimiter,
@@ -46,6 +47,7 @@ router.post('/refresh', verifyRefreshToken, refreshToken);
 router.post('/setup-mfa', verifyAccessToken, requireEmailVerified, setupMfa);
 router.post('/verify-mfa-setup', verifyAccessToken, verifyMfaSetup);
 router.post('/disable-mfa', verifyAccessToken, disableMfa);
+router.post('/deactivate', verifyAccessToken, deactivateAccount);
 
 // Google OAuth
 router.get(

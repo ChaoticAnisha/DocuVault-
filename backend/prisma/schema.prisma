@@ -28,6 +28,7 @@ model User {
   storageUsed            BigInt              @default(0)
   storageLimitBytes      BigInt              @default(104857600)
   isPremium              Boolean             @default(false)
+  isActive               Boolean             @default(true)
   stripeCustomerId       String?
   createdAt              DateTime            @default(now())
   updatedAt              DateTime            @updatedAt

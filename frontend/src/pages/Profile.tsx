@@ -70,7 +70,7 @@ function PasswordStrengthMeter({ password }: { password: string }) {
 }
 
 export default function Profile() {
-  const { user, setUser } = useAuthStore();
+  const { user, setUser, logout } = useAuthStore();
   const navigate = useNavigate();
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
@@ -78,6 +78,11 @@ export default function Profile() {
   const [deleteTyped, setDeleteTyped] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [showDeactivateModal, setShowDeactivateModal] = useState(false);
+  const [deactivatePassword, setDeactivatePassword] = useState('');
+  const [isDeactivating, setIsDeactivating] = useState(false);
+  const [deactivateError, setDeactivateError] = useState('');
 
   const initials = user?.username
     ? user.username.slice(0, 2).toUpperCase()
@@ -147,6 +152,58 @@ export default function Profile() {
       toast.error('Export failed');
     } finally {
       setExporting(false);
+    }
+  };
+
+  const handleExportData = async () => {
+    setIsExporting(true);
+    try {
+      const response = await fetch('/api/users/export-data', {
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Export failed');
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'my-docuvault-data.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success('Your data export is downloading');
+    } catch {
+      toast.error('Export failed. Please try again.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleDeactivate = async () => {
+    if (!deactivatePassword) {
+      setDeactivateError('Please enter your password.');
+      return;
+    }
+    setIsDeactivating(true);
+    setDeactivateError('');
+    try {
+      const res = await fetch('/api/auth/deactivate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ password: deactivatePassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setDeactivateError(data.error || 'Deactivation failed.');
+        return;
+      }
+      logout();
+      navigate('/login');
+    } catch {
+      setDeactivateError('Something went wrong. Please try again.');
+    } finally {
+      setIsDeactivating(false);
     }
   };
 
@@ -371,6 +428,73 @@ export default function Profile() {
               Delete
             </button>
           </div>
+        </div>
+
+        {/* Privacy and Data */}
+        <div className="mt-8 border-t pt-8">
+          <h2 className="text-xl font-semibold mb-4">Privacy and Data</h2>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <p className="text-sm text-blue-800">
+              Your data is protected with AES-256-CBC encryption at rest.
+              Under GDPR principles, you have the right to export or delete
+              your personal data at any time.
+            </p>
+          </div>
+          <div className="flex gap-4 flex-wrap">
+            <button
+              onClick={handleExportData}
+              disabled={isExporting}
+              className="px-4 py-2 border border-blue-600 text-blue-600 rounded hover:bg-blue-50 disabled:opacity-50"
+            >
+              {isExporting ? 'Exporting...' : 'Download My Data'}
+            </button>
+            <button
+              onClick={() => setShowDeactivateModal(true)}
+              className="px-4 py-2 border border-red-600 text-red-600 rounded hover:bg-red-50"
+            >
+              Deactivate Account
+            </button>
+          </div>
+          {showDeactivateModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                <h3 className="text-lg font-semibold mb-2">Deactivate Account</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  This will permanently deactivate your account.
+                  You will be logged out immediately.
+                </p>
+                <input
+                  type="password"
+                  placeholder="Enter your password to confirm"
+                  value={deactivatePassword}
+                  onChange={(e) => setDeactivatePassword(e.target.value)}
+                  className="w-full border rounded px-3 py-2 mb-2"
+                />
+                {deactivateError && (
+                  <p className="text-red-600 text-sm mb-2">{deactivateError}</p>
+                )}
+                <div className="flex gap-3 justify-end mt-4">
+                  <button
+                    onClick={() => {
+                      setShowDeactivateModal(false);
+                      setDeactivateError('');
+                      setDeactivatePassword('');
+                    }}
+                    className="px-4 py-2 border rounded hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleDeactivate}
+                    disabled={isDeactivating}
+                    className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                  >
+                    {isDeactivating ? 'Deactivating...' : 'Confirm Deactivation'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
