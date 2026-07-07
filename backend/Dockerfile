@@ -4,7 +4,7 @@ WORKDIR /app
 
 # Install all deps (including devDependencies such as typescript)
 COPY package*.json ./
-RUN npm ci
+RUN npm install
 
 COPY . .
 
@@ -21,7 +21,7 @@ WORKDIR /app
 
 # Production dependencies only
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN npm install --omit=dev
 
 # Compiled output
 COPY --from=builder /app/dist ./dist
