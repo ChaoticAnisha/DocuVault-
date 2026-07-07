@@ -7,7 +7,7 @@ RUN apk add --no-cache openssl
 
 # Install all deps (including devDependencies such as typescript)
 COPY package*.json ./
-RUN npm install
+RUN npm install --legacy-peer-deps
 
 COPY . .
 
@@ -27,7 +27,7 @@ WORKDIR /app
 
 # Production dependencies only
 COPY package*.json ./
-RUN npm install --omit=dev
+RUN npm install --legacy-peer-deps --omit=dev
 
 # Compiled output
 COPY --from=builder /app/dist ./dist

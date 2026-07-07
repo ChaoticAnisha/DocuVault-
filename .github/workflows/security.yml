@@ -18,10 +18,10 @@ jobs:
           node-version: '20'
       - name: Audit backend dependencies
         working-directory: ./backend
-        run: npm install --ignore-scripts && npm audit --audit-level=critical
+        run: npm install --legacy-peer-deps --ignore-scripts && npm audit --audit-level=critical
       - name: Audit frontend dependencies
         working-directory: ./frontend
-        run: npm install --ignore-scripts && npm audit --audit-level=critical
+        run: npm install --legacy-peer-deps --ignore-scripts && npm audit --audit-level=critical
 
   secret-scan:
     name: Secret Detection with Gitleaks
