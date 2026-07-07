@@ -2,6 +2,9 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
+# Prisma's query-engine binary needs OpenSSL on Alpine
+RUN apk add --no-cache openssl
+
 # Install all deps (including devDependencies such as typescript)
 COPY package*.json ./
 RUN npm install
@@ -13,6 +16,9 @@ RUN npx prisma generate && npm run build
 
 # ── Stage 2: Production image ─────────────────────────────────────────────────
 FROM node:20-alpine
+
+# Prisma's query-engine binary needs OpenSSL at runtime too
+RUN apk add --no-cache openssl
 
 # Non-root user for security
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
