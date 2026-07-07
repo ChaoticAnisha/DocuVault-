@@ -1,4 +1,4 @@
-# DocuVault — Local Setup (Windows, No Docker)
+# DocuVault 
 
 ## Prerequisites
 - Node.js 20+
