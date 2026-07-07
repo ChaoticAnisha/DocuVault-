@@ -9,7 +9,6 @@ import passport from 'passport';
 import { securityHeaders } from './middleware/securityHeaders';
 import { requestLogger } from './middleware/logger';
 import { sanitizeInput } from './middleware/inputSanitizer';
-import { csrfMiddleware } from './middleware/csrf';
 import { errorHandler } from './middleware/errorHandler';
 import { generalLimiter } from './middleware/rateLimiter';
 import { runSecurityAudit } from './utils/securityAudit';
@@ -63,10 +62,9 @@ app.use(
 app.use(passport.initialize());
 app.use(passport.session());
 
-// ── Request logging, sanitization, CSRF, global rate limit ───────────────────
+// ── Request logging, sanitization, global rate limit ─────────────────────────
 app.use(requestLogger);
 app.use(sanitizeInput);
-app.use(csrfMiddleware);
 app.use(generalLimiter);
 
 // ── Routes ────────────────────────────────────────────────────────────────────
