@@ -1,5 +1,11 @@
 import 'dotenv/config';
 import express from 'express';
+
+// Prisma returns BigInt for storage-size fields (sizeBytes, storageUsed, storageLimitBytes).
+// JSON.stringify cannot serialise BigInt natively; this patch converts them to strings.
+(BigInt.prototype as unknown as { toJSON: () => string }).toJSON = function () {
+  return this.toString();
+};
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import session from 'express-session';
